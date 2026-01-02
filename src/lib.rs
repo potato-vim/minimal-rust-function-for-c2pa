@@ -188,6 +188,10 @@ pub enum IngredientRelation {
     ParentOf,
     ComponentOf,
     InputTo,
+    /// Used when content is derived/transformed from source
+    DerivedFrom,
+    /// Used when multiple sources are composed together
+    ComposedFrom,
 }
 
 impl IngredientRelation {
@@ -196,6 +200,8 @@ impl IngredientRelation {
             Self::ParentOf => "parentOf",
             Self::ComponentOf => "componentOf",
             Self::InputTo => "inputTo",
+            Self::DerivedFrom => "derivedFrom",
+            Self::ComposedFrom => "composedFrom",
         }
     }
 }
@@ -591,6 +597,321 @@ where
             .add_ingredient(input, IngredientRelation::ParentOf);
 
         builder.sign(&TestSigner)
+    }
+}
+
+// ============================================================================
+// Demo Domain Types
+// ============================================================================
+
+/// A simple invoice for Demo 1 (Verified Gate Parse).
+///
+/// This type can only be parsed from verified bytes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Invoice {
+    pub id: u32,
+    pub amount: u32,
+}
+
+impl Invoice {
+    /// Encode invoice to bytes (simple format: id:amount)
+    pub fn to_bytes(&self) -> Vec<u8> {
+        format!("{}:{}", self.id, self.amount).into_bytes()
+    }
+
+    /// Parse from bytes. This is intentionally NOT public for direct use.
+    /// Use ParseTransform instead to ensure provenance.
+    fn from_bytes(bytes: &[u8]) -> Result<Self, TransformError> {
+        let s = std::str::from_utf8(bytes)
+            .map_err(|_| TransformError::C2pa("invalid UTF-8".into()))?;
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 2 {
+            return Err(TransformError::C2pa("invalid invoice format".into()));
+        }
+        let id = parts[0].parse()
+            .map_err(|_| TransformError::C2pa("invalid id".into()))?;
+        let amount = parts[1].parse()
+            .map_err(|_| TransformError::C2pa("invalid amount".into()))?;
+        Ok(Invoice { id, amount })
+    }
+}
+
+impl C2paBindable for Invoice {
+    fn content_hash(&self) -> ContentHash {
+        ContentHash::compute(self.to_bytes())
+    }
+
+    fn media_type(&self) -> &str {
+        "application/x-invoice"
+    }
+}
+
+/// A simple grayscale image for Demo 2 (Redaction).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Image {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+}
+
+impl Image {
+    /// Create a new image filled with a value.
+    pub fn new(width: u32, height: u32, fill: u8) -> Self {
+        Self {
+            width,
+            height,
+            pixels: vec![fill; (width * height) as usize],
+        }
+    }
+
+    /// Create a test pattern image.
+    pub fn test_pattern(width: u32, height: u32) -> Self {
+        let pixels: Vec<u8> = (0..(width * height))
+            .map(|i| (i % 256) as u8)
+            .collect();
+        Self { width, height, pixels }
+    }
+
+    /// Get pixel at (x, y).
+    pub fn get(&self, x: u32, y: u32) -> Option<u8> {
+        if x < self.width && y < self.height {
+            Some(self.pixels[(y * self.width + x) as usize])
+        } else {
+            None
+        }
+    }
+
+    /// Set pixel at (x, y).
+    pub fn set(&mut self, x: u32, y: u32, value: u8) {
+        if x < self.width && y < self.height {
+            self.pixels[(y * self.width + x) as usize] = value;
+        }
+    }
+}
+
+impl C2paBindable for Image {
+    fn content_hash(&self) -> ContentHash {
+        let mut data = Vec::new();
+        data.extend_from_slice(&self.width.to_le_bytes());
+        data.extend_from_slice(&self.height.to_le_bytes());
+        data.extend_from_slice(&self.pixels);
+        ContentHash::compute(data)
+    }
+
+    fn media_type(&self) -> &str {
+        "image/x-grayscale"
+    }
+}
+
+// ============================================================================
+// Demo 1: ParseTransform - Verified Gate
+// ============================================================================
+
+/// Transform that parses verified bytes into a structured type.
+///
+/// # Type Safety
+///
+/// This transform ONLY accepts `C2pa<Vec<u8>, Verified>`.
+/// Unverified bytes cannot be parsed - enforced at compile time.
+///
+/// ```compile_fail
+/// use c2pa_primitives::*;
+///
+/// let unverified_bytes = C2pa::<Vec<u8>, Unverified>::new(
+///     b"1:100".to_vec(),
+///     Provenance::root("test", ClaimHash([0; 32]), AssetBinding::Hash(ContentHash([0; 32]))),
+/// );
+/// let parse = ParseTransform::<Invoice>::new();
+/// let mut ctx = TransformContext::new("test");
+/// // ERROR: expected Verified, found Unverified
+/// let _ = parse.transform(&unverified_bytes, &mut ctx);
+/// ```
+pub struct ParseTransform<T> {
+    _phantom: PhantomData<T>,
+}
+
+impl<T> ParseTransform<T> {
+    pub fn new() -> Self {
+        Self { _phantom: PhantomData }
+    }
+}
+
+impl<T> Default for ParseTransform<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl C2paTransform<Vec<u8>, Invoice> for ParseTransform<Invoice> {
+    fn transform(
+        &self,
+        input: &C2pa<Vec<u8>, Verified>,
+        ctx: &mut TransformContext,
+    ) -> Result<C2pa<Invoice, Verified>, TransformError> {
+        let invoice = Invoice::from_bytes(input.payload())?;
+
+        C2paBuilder::new(invoice)
+            .generator(&ctx.generator)
+            .add_ingredient(input, IngredientRelation::DerivedFrom)
+            .sign(&TestSigner)
+    }
+}
+
+// ============================================================================
+// Demo 2: RedactTransform - Derivative with Provenance
+// ============================================================================
+
+/// Transform that redacts (masks) a rectangular region of an image.
+///
+/// The output image has provenance linking back to the original
+/// with `derivedFrom` relationship.
+pub struct RedactTransform {
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+}
+
+impl RedactTransform {
+    pub fn new(x: u32, y: u32, w: u32, h: u32) -> Self {
+        Self { x, y, w, h }
+    }
+}
+
+impl C2paTransform<Image, Image> for RedactTransform {
+    fn transform(
+        &self,
+        input: &C2pa<Image, Verified>,
+        ctx: &mut TransformContext,
+    ) -> Result<C2pa<Image, Verified>, TransformError> {
+        let mut output = input.payload().clone();
+
+        // Apply redaction (fill with 0)
+        for dy in 0..self.h {
+            for dx in 0..self.w {
+                output.set(self.x + dx, self.y + dy, 0);
+            }
+        }
+
+        C2paBuilder::new(output)
+            .generator(&ctx.generator)
+            .add_ingredient(input, IngredientRelation::DerivedFrom)
+            .sign(&TestSigner)
+    }
+}
+
+// ============================================================================
+// Demo 3: CompositeTransform - Graph (DAG) Provenance
+// ============================================================================
+
+/// Trait for composing two verified sources into one output.
+///
+/// This creates a provenance DAG with multiple ingredients.
+pub trait C2paComposite<A: C2paBindable, B: C2paBindable, O: C2paBindable> {
+    fn compose(
+        &self,
+        a: &C2pa<A, Verified>,
+        b: &C2pa<B, Verified>,
+        ctx: &mut TransformContext,
+    ) -> Result<C2pa<O, Verified>, TransformError>;
+}
+
+/// Composite transform that concatenates two images horizontally.
+pub struct HConcatTransform;
+
+impl C2paComposite<Image, Image, Image> for HConcatTransform {
+    fn compose(
+        &self,
+        a: &C2pa<Image, Verified>,
+        b: &C2pa<Image, Verified>,
+        ctx: &mut TransformContext,
+    ) -> Result<C2pa<Image, Verified>, TransformError> {
+        let img_a = a.payload();
+        let img_b = b.payload();
+
+        // Heights must match for horizontal concat
+        if img_a.height != img_b.height {
+            return Err(TransformError::C2pa("height mismatch".into()));
+        }
+
+        let new_width = img_a.width + img_b.width;
+        let height = img_a.height;
+        let mut pixels = Vec::with_capacity((new_width * height) as usize);
+
+        for y in 0..height {
+            // Copy row from A
+            let a_start = (y * img_a.width) as usize;
+            let a_end = a_start + img_a.width as usize;
+            pixels.extend_from_slice(&img_a.pixels[a_start..a_end]);
+
+            // Copy row from B
+            let b_start = (y * img_b.width) as usize;
+            let b_end = b_start + img_b.width as usize;
+            pixels.extend_from_slice(&img_b.pixels[b_start..b_end]);
+        }
+
+        let output = Image {
+            width: new_width,
+            height,
+            pixels,
+        };
+
+        // Add BOTH sources as ingredients - this creates the DAG
+        C2paBuilder::new(output)
+            .generator(&ctx.generator)
+            .add_ingredient(a, IngredientRelation::ComposedFrom)
+            .add_ingredient(b, IngredientRelation::ComposedFrom)
+            .sign(&TestSigner)
+    }
+}
+
+/// Generic function-based composite transform.
+pub struct FnComposite<F, A, B, O>
+where
+    F: Fn(&A, &B) -> O,
+    A: C2paBindable,
+    B: C2paBindable,
+    O: C2paBindable,
+{
+    func: F,
+    _phantom: PhantomData<(A, B, O)>,
+}
+
+impl<F, A, B, O> FnComposite<F, A, B, O>
+where
+    F: Fn(&A, &B) -> O,
+    A: C2paBindable,
+    B: C2paBindable,
+    O: C2paBindable,
+{
+    pub fn new(func: F) -> Self {
+        Self {
+            func,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<F, A, B, O> C2paComposite<A, B, O> for FnComposite<F, A, B, O>
+where
+    F: Fn(&A, &B) -> O,
+    A: C2paBindable,
+    B: C2paBindable,
+    O: C2paBindable,
+{
+    fn compose(
+        &self,
+        a: &C2pa<A, Verified>,
+        b: &C2pa<B, Verified>,
+        ctx: &mut TransformContext,
+    ) -> Result<C2pa<O, Verified>, TransformError> {
+        let output = (self.func)(a.payload(), b.payload());
+
+        C2paBuilder::new(output)
+            .generator(&ctx.generator)
+            .add_ingredient(a, IngredientRelation::ComposedFrom)
+            .add_ingredient(b, IngredientRelation::ComposedFrom)
+            .sign(&TestSigner)
     }
 }
 

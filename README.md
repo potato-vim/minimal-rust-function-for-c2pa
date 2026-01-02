@@ -71,7 +71,28 @@ S = Verified   → 検証済（信頼経路からのみ生成可能）
 | `ContentHash` | コンテンツのSHA-256ハッシュ |
 | `AssetBinding` | Hash または Box(offset, length, hash) |
 | `IngredientRef` | 親の参照情報 |
-| `IngredientRelation` | ParentOf / ComponentOf / InputTo |
+| `IngredientRelation` | ParentOf / ComponentOf / InputTo / DerivedFrom / ComposedFrom |
+
+### 5. Demo Domain Types
+
+| Type | Role |
+|------|------|
+| `Invoice` | Demo 1用: バイト列からパースされる構造体 |
+| `Image` | Demo 2/3用: グレースケール画像 |
+| `ParseTransform<T>` | `Vec<u8>` → `T` の来歴付きパース |
+| `RedactTransform` | 画像の矩形領域をマスク（derivedFrom） |
+| `HConcatTransform` | 2画像を横連結（composedFrom x 2） |
+| `C2paComposite<A,B,O>` | 2入力合成トレイト（DAG生成） |
+
+---
+
+## Essential Demos
+
+| Demo | 本質 |
+|------|------|
+| **Demo 1: Verified Gate** | 未検証バイトは`verify()`を通さないとパースできない。型でコンパイル時に強制。 |
+| **Demo 2: Redaction** | 画像を加工しても`derivedFrom`として来歴が追跡される。改ざん隠蔽を防ぐ。 |
+| **Demo 3: Graph** | 2つのVerified素材を合成すると`ingredients`が2本のDAGになる。チェーンではなくグラフ。 |
 
 ---
 
