@@ -23,15 +23,22 @@ This project distills the **spirit** of C2PA into something you can read in an a
 ## Quick Demo
 
 ```rust
+use c2pa_primitives::debug::{print_step, verify_chain};
 use c2pa_primitives::*;
 
 #[c2pa_pipeline(generator = "demo")]
 fn main() -> Result<(), TransformError> {
-    let step1 = start_c2pa()?;           // source: 5
-    let step2 = double_c2pa(&step1)?;    // transform: 10
-    let step3 = add_ten_c2pa(&step2)?;   // transform: 20
+    let step1 = start_c2pa()?;
+    print_step("step1", &step1);
+    let step2 = double_c2pa(&step1)?;
+    print_step("step2", &step2);
+    let step3 = add_ten_c2pa(&step2)?;
+    print_step("step3", &step3);
 
-    println!("Result: {}", step3.payload());
+    verify_chain(&step2, &step1, "step2");
+    verify_chain(&step3, &step2, "step3");
+
+    println!("  Final value: {}", step3.payload());
     Ok(())
 }
 
