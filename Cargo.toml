@@ -13,12 +13,6 @@ path = "src/lib.rs"
 name = "demo"
 path = "src/main.rs"
 
-[[example]]
-name = "image_pipeline"
-
-[[example]]
-name = "primitive_functions"
-
 [dependencies]
 sha2 = "0.10"
 thiserror = "1.0"

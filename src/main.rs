@@ -1,8 +1,6 @@
 //! C2PA Primitives - Minimal Demonstration
 //!
 //! Run with: cargo run
-//! Examples: cargo run --example image_pipeline
-//!           cargo run --example primitive_functions
 
 use c2pa_primitives::*;
 
@@ -126,12 +124,6 @@ fn main() -> Result<(), TransformError> {
             ing.claim_hash.0[1]);
     }
     println!();
-
-    println!("═══════════════════════════════════════════════════════════════");
-    println!("Run examples for more:");
-    println!("  cargo run --example image_pipeline");
-    println!("  cargo run --example primitive_functions");
-    println!("═══════════════════════════════════════════════════════════════");
 
     Ok(())
 }

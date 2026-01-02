@@ -552,7 +552,7 @@ where
     O: C2paBindable,
 {
     func: F,
-    action_label: String,
+    _action_label: String,
     _phantom: PhantomData<(I, O)>,
 }
 
@@ -565,7 +565,7 @@ where
     pub fn new(func: F, action_label: impl Into<String>) -> Self {
         Self {
             func,
-            action_label: action_label.into(),
+            _action_label: action_label.into(),
             _phantom: PhantomData,
         }
     }
