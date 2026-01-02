@@ -48,15 +48,45 @@ fn add_ten(x: &u32) -> u32 { x + 10 }
 **Output:**
 
 ```
-Result: 20
+═══════════════════════════════════════
+  C2PA Provenance Chain Demo
+═══════════════════════════════════════
+
+┌─ Step 1: start() → 5 ─────────────────────────────
+│ payload      : 5
+│ claim_hash   : 75372f4145c1e603...
+│ ingredients  : 0                        ← root (no parent)
+└────────────────────────────────────
+
+┌─ Step 2: double(5) → 10 ─────────────────────────────
+│ payload      : 10
+│ claim_hash   : e7c3eb3502a53b91...
+│ ingredients  : 1                        ← references step1
+└────────────────────────────────────
+
+┌─ Step 3: add_ten(10) → 20 ─────────────────────────────
+│ payload      : 20
+│ claim_hash   : f58f1e8dcbe8cc84...
+│ ingredients  : 1                        ← references step2
+└────────────────────────────────────
+
+═══════════════════════════════════════
+  Chain Verification
+═══════════════════════════════════════
+  ✓ step2 → parent claim_hash matches: 75372f4145c1e603...
+  ✓ step3 → parent claim_hash matches: e7c3eb3502a53b91...
+
+  Final value: 20
+  Chain depth: 3 (start → double → add_ten)
+  All hashes linked: ✓
 ```
 
-Behind the scenes, each step produces a `C2pa<T, Verified>` with:
-- A cryptographic claim hash
-- An ingredient reference to its parent's claim hash
+Each step produces a `C2pa<T, Verified>` with:
+- A unique `claim_hash` (cryptographic commitment)
+- An `ingredient` reference to its parent's `claim_hash`
 - Content binding via hash
 
-The chain `start -> double -> add_ten` is **cryptographically linked** — each step commits to its predecessor.
+The chain is **cryptographically linked** — step3's ingredient points to step2's `claim_hash`, which points to step1's. Tampering with any step breaks the chain.
 
 ---
 
