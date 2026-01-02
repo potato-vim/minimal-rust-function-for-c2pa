@@ -1,0 +1,23 @@
+[package]
+name = "c2pa_primitives"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Minimal C2PA embedding for Rust primitive functions"
+
+[lib]
+name = "c2pa_primitives"
+path = "src/lib.rs"
+
+[[bin]]
+name = "demo"
+path = "src/main.rs"
+
+[dependencies]
+sha2.workspace = true
+thiserror.workspace = true
+c2pa_macros = { path = "../c2pa_macros" }
+
+[dev-dependencies]
+tempfile = "3.10"
+trybuild = "1.0"

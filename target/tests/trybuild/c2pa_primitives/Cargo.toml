@@ -1,0 +1,50 @@
+[package]
+name = "c2pa_primitives-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies.c2pa_macros]
+path = "/Users/potato/Dev/rust_c2pa_minimum_function/crates/c2pa_primitives/../c2pa_macros/"
+
+[dependencies.c2pa_primitives]
+path = "/Users/potato/Dev/rust_c2pa_minimum_function/crates/c2pa_primitives/"
+default-features = false
+
+[dependencies.sha2]
+workspace = true
+
+[dependencies.tempfile]
+version = "3.10"
+default-features = true
+
+[dependencies.thiserror]
+workspace = true
+
+[[bin]]
+name = "c2pa_primitives-tests"
+path = "main.rs"
+
+[[bin]]
+name = "trybuild000"
+path = "/Users/potato/Dev/rust_c2pa_minimum_function/crates/c2pa_primitives/tests/ui/unverified_rejected.rs"
+
+[workspace.dependencies.proc-macro2]
+version = "1.0"
+default-features = true
+
+[workspace.dependencies.quote]
+version = "1.0"
+default-features = true
+
+[workspace.dependencies.sha2]
+version = "0.10"
+default-features = true
+
+[workspace.dependencies.syn]
+version = "2.0"
+features = ["full", "parsing", "extra-traits"]
+
+[workspace.dependencies.thiserror]
+version = "1.0"
+default-features = true
