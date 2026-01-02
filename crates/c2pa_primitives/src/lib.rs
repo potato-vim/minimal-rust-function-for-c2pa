@@ -1147,6 +1147,70 @@ pub fn has_ctx() -> bool {
     CURRENT_CTX.with(|cell| cell.borrow().is_some())
 }
 
+// ============================================================================
+// Debug Utilities - For demos and debugging
+// ============================================================================
+
+/// Debug utilities for inspecting C2PA provenance chains.
+pub mod debug {
+    use super::*;
+
+    /// Format hash as short hex string (first 8 bytes).
+    pub fn hash_short(hash: &[u8; 32]) -> String {
+        hash.iter().take(8).map(|b| format!("{:02x}", b)).collect()
+    }
+
+    /// Print provenance info for a C2PA value.
+    pub fn print_step<T>(label: &str, value: &C2pa<T, Verified>)
+    where
+        T: std::fmt::Debug + C2paBindable,
+    {
+        let prov = value.provenance();
+        let content_hash = value.payload().content_hash();
+
+        println!("\n┌─ {} ─────────────────────────────", label);
+        println!("│ payload      : {:?}", value.payload());
+        println!("│ manifest_id  : {}", prov.manifest_id);
+        println!("│ claim_hash   : {}...", hash_short(prov.claim_hash.as_bytes()));
+        println!("│ content_hash : {}...", hash_short(&content_hash.0));
+        println!("│ ingredients  : {}", prov.ingredients.len());
+        println!("└────────────────────────────────────");
+    }
+
+    /// Verify that ingredient's claim_hash matches parent's claim_hash.
+    pub fn verify_chain<T, U>(child: &C2pa<T, Verified>, parent: &C2pa<U, Verified>, step_name: &str)
+    where
+        T: C2paBindable,
+        U: C2paBindable,
+    {
+        let child_prov = child.provenance();
+        let parent_prov = parent.provenance();
+
+        if child_prov.ingredients.is_empty() {
+            println!("  ⚠ {} has no ingredients to verify", step_name);
+            return;
+        }
+
+        let ingredient_hash = &child_prov.ingredients[0].claim_hash;
+        let parent_hash = &parent_prov.claim_hash;
+
+        if ingredient_hash == parent_hash {
+            println!(
+                "  ✓ {} → parent claim_hash matches: {}...",
+                step_name,
+                hash_short(parent_hash.as_bytes())
+            );
+        } else {
+            println!(
+                "  ✗ {} → MISMATCH! ingredient: {}... vs parent: {}...",
+                step_name,
+                hash_short(ingredient_hash.as_bytes()),
+                hash_short(parent_hash.as_bytes())
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
