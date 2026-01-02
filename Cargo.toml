@@ -1,0 +1,36 @@
+[package]
+name = "c2pa_primitives"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal C2PA embedding for Rust primitive functions"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "c2pa_primitives"
+path = "src/lib.rs"
+
+[[bin]]
+name = "demo"
+path = "src/main.rs"
+
+[[example]]
+name = "image_pipeline"
+
+[[example]]
+name = "primitive_functions"
+
+[dependencies]
+sha2 = "0.10"
+thiserror = "1.0"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+# Optional: Enable when integrating with actual c2pa crate
+# [features]
+# c2pa-integration = ["c2pa"]
+#
+# [dependencies.c2pa]
+# version = "0.36"
+# features = ["file_io"]
+# optional = true
