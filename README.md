@@ -4,6 +4,7 @@ A minimal, educational, C2PA-inspired provenance DSL for Rust.
 
 > This project does not implement the C2PA specification.
 > It extracts the **essence** of what C2PA tries to solve — provenance, tamper-evidence, and accountability — and expresses it as a type-safe, minimal DSL.
+<img width="2484" height="1746" alt="image" src="https://github.com/user-attachments/assets/2df9bc52-fdc4-4f75-89ff-5d63548d2c4d" />
 
 ---
 
