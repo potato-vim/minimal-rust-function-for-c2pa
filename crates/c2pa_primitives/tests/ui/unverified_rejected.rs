@@ -18,8 +18,6 @@ fn main() {
         ),
     );
 
-    let mut ctx = TransformContext::new("test");
-
     // This should fail: double_c2pa expects &C2pa<u32, Verified>
-    let _ = double_c2pa(&unverified, &mut ctx);
+    let _ = double_c2pa(&unverified);
 }

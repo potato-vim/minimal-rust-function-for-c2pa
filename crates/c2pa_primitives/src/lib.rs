@@ -24,8 +24,8 @@ use sha2::{Digest, Sha256};
 use std::marker::PhantomData;
 use thiserror::Error;
 
-// Re-export the attribute macro
-pub use c2pa_macros::c2pa_transform;
+// Re-export the attribute macros
+pub use c2pa_macros::{c2pa_pipeline, c2pa_source, c2pa_transform};
 
 // ============================================================================
 // Marker Types - Type-level state encoding
@@ -1089,6 +1089,62 @@ mod hex {
     pub fn encode(bytes: &[u8]) -> String {
         bytes.iter().map(|b| format!("{:02x}", b)).collect()
     }
+}
+
+// ============================================================================
+// Thread-local Context API (for #[c2pa_pipeline])
+// ============================================================================
+
+use std::cell::RefCell;
+
+thread_local! {
+    static CURRENT_CTX: RefCell<Option<TransformContext>> = const { RefCell::new(None) };
+}
+
+/// Initialize a new pipeline context and run the closure within it.
+///
+/// Used by `#[c2pa_pipeline]` macro.
+#[doc(hidden)]
+pub fn with_new_ctx<F, R>(generator: &str, f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    CURRENT_CTX.with(|cell| {
+        if cell.borrow().is_some() {
+            panic!("c2pa_pipeline cannot be nested");
+        }
+        *cell.borrow_mut() = Some(TransformContext::new(generator));
+    });
+
+    let result = f();
+
+    CURRENT_CTX.with(|cell| {
+        *cell.borrow_mut() = None;
+    });
+
+    result
+}
+
+/// Execute a closure with mutable access to the current context.
+///
+/// Panics if called outside a `#[c2pa_pipeline]`.
+#[doc(hidden)]
+pub fn with_ctx<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut TransformContext) -> R,
+{
+    CURRENT_CTX.with(|cell| {
+        let mut borrow = cell.borrow_mut();
+        let ctx = borrow
+            .as_mut()
+            .expect("with_ctx called outside #[c2pa_pipeline]");
+        f(ctx)
+    })
+}
+
+/// Check if a pipeline context is currently active.
+pub fn has_ctx() -> bool {
+    CURRENT_CTX.with(|cell| cell.borrow().is_some())
 }
 
 #[cfg(test)]
